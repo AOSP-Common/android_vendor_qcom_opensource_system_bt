@@ -3367,6 +3367,13 @@ void btm_io_capabilities_req(const RawAddress& p) {
   BTM_TRACE_EVENT("%s: State: %s", __func__,
                   btm_pair_state_descr(btm_cb.pairing_state));
 
+  if (btm_sec_is_a_bonded_dev(p)) {
+    BTM_TRACE_WARNING(
+        "%s: Incoming bond request, but %s is already bonded (removing)",
+        __func__, p.ToString().c_str());
+    bta_dm_process_remove_device(p);
+  }
+
   p_dev_rec = btm_find_or_alloc_dev(evt_data.bd_addr);
 
   BTM_TRACE_DEBUG("%s:Security mode: %d, Num Read Remote Feat pages: %d",
@@ -4843,6 +4850,7 @@ void btm_sec_disconnected(uint16_t handle, uint8_t reason) {
     tBTA_DM_MSG p_data;
     p_data.remove_dev.bd_addr = p_dev_rec->bd_addr;
     bta_dm_remove_device(&p_data);
+    return;
   }
 
   if (p_dev_rec->sec_state == BTM_SEC_STATE_DISCONNECTING_BOTH) {
@@ -5190,6 +5198,13 @@ void btm_sec_pin_code_request(const RawAddress& p_bda) {
 
   VLOG(2) << __func__ << " BDA: " << p_bda
           << " state: " << btm_pair_state_descr(btm_cb.pairing_state);
+
+  RawAddress local_bd_addr = *controller_get_interface()->get_address();
+  if (p_bda == local_bd_addr) {
+    android_errorWriteLog(0x534e4554, "174626251");
+    btsnd_hcic_pin_code_neg_reply(p_bda);
+    return;
+  }
 
   if (btm_cb.pairing_state != BTM_PAIR_STATE_IDLE) {
     if ((p_bda == btm_cb.pairing_bda) &&
